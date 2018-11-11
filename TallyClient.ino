@@ -39,7 +39,8 @@
 ESP8266WiFiMulti WiFiMulti;
 
 void enableLED (int led, uint8_t state) { 
-  digitalWrite (led, state); 
+  if (state) analogWrite (led, state == PIN_RED ? 2 : 10); 
+  else digitalWrite (led, LOW); 
 }
 
 void setup() {
