@@ -15,6 +15,11 @@
 
 #include <ESP8266HTTPClient.h>
 
+// Our own include for Wifi password: 
+#include "wifi-credentials.h" 
+
+#define CONNECT_URL "http://192.168.1.121:50513/4" 
+
 // The debugs and PIN defines by Ruvim: 
 #define DEBUG 1 
 
@@ -33,6 +38,10 @@
 
 ESP8266WiFiMulti WiFiMulti;
 
+void enableLED (int led, uint8_t state) { 
+  digitalWrite (led, state); 
+}
+
 void setup() {
   #if DEBUG 
   Serial.begin (9600); 
@@ -40,7 +49,7 @@ void setup() {
 
   // Sample code called WiFi.mode () and WiFiMulti.addAP (): 
   WiFi.mode(WIFI_STA);
-  WiFiMulti.addAP ("****_2.4Ghz", "*****"); // Insert your SSID and passphrase here. 
+  WiFiMulti.addAP (WIFI_NETWORK, WIFI_PASSWORD); // Insert your SSID and passphrase here. 
 
   // Tally uses red, yellow, and green, and the built-in LED: 
   pinMode (BUILTIN_LED, OUTPUT); 
@@ -86,6 +95,7 @@ void setup() {
  */ 
 
 void loop() {
+  static uint8_t b_initialized = 0; 
   #if DEBUG 
   static size_t loop_count = 0; 
   TRACE ("Entered loop () function; loop count before this: ", loop_count); 
@@ -96,13 +106,15 @@ void loop() {
     HTTPClient http; 
 
     // Connect to the server: 
-    TRACE ("Connecting as camera ", 4); 
-    http.begin ("http://192.168.1.121:50513/4"); // Change to your server's IP address. 
+    TRACE ("Connecting ... ", 0); 
+    TRACE (CONNECT_URL, 0); 
+    http.begin (CONNECT_URL); // Change to your server's IP address. 
 
     int httpCode = http.GET();
     TRACE ("HTTP requested; response code: ", httpCode); 
     if (httpCode > 0) {
       if (httpCode == HTTP_CODE_OK) {
+        b_initialized = 1; 
 
         // The getSize () is -1 when the server sends no Content-Length header; this is the case for our tally server. 
         int len = http.getSize();
@@ -133,9 +145,9 @@ void loop() {
 
             digitalWrite (BUILTIN_LED, !red ? HIGH : LOW); 
 
-            digitalWrite (PIN_RED, red ? HIGH : LOW); // On program, or on aux (e.g., projector). 
-            digitalWrite (PIN_YEL, !red && buff[2] != 0 ? HIGH : LOW); // On preview. And NOT on program or aux output (for our church, aux goes to the projectors). 
-            digitalWrite (PIN_GRN, !red && buff[2] == 0 ? HIGH : LOW); // Can move. 
+            enableLED (PIN_RED, red ? HIGH : LOW); // On program, or on aux (e.g., projector). 
+            enableLED (PIN_YEL, !red && buff[2] != 0 ? HIGH : LOW); // On preview. And NOT on program or aux output (for our church, aux goes to the projectors). 
+            enableLED (PIN_GRN, !red && buff[2] == 0 ? HIGH : LOW); // Can move. 
 
             lastReceive = millis (); 
           }
@@ -145,10 +157,10 @@ void loop() {
         TRACE ("Exited receive loop; time since last receive: ", millis () - lastReceive); 
         
 
-        digitalWrite (D5, HIGH); 
-        digitalWrite (D6, HIGH); 
-        digitalWrite (D7, HIGH); 
-        digitalWrite (D8, HIGH); 
+        enableLED (D5, HIGH); 
+        enableLED (D6, HIGH); 
+        enableLED (D7, HIGH); 
+        enableLED (D8, HIGH); 
 
       }
     } else {
@@ -157,6 +169,21 @@ void loop() {
     }
 
     http.end();
+  } else if (!b_initialized) { 
+    // If not initalized yet, then blink LEDs to let the user know we're loading. Helps with checking pin connections without a WiFi network. 
+      enableLED (PIN_RED, 1); 
+      enableLED (PIN_YEL, 0); 
+      enableLED (PIN_GRN, 0); 
+      delay (250); 
+      enableLED (PIN_RED, 0); 
+      enableLED (PIN_YEL, 1); 
+      delay (250); 
+      enableLED (PIN_YEL, 0); 
+      enableLED (PIN_GRN, 1); 
+      delay (250); 
+      enableLED (PIN_GRN, 0); 
+      delay (250); 
+      return; 
   }
 
   delay(1000);
